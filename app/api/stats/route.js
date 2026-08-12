@@ -31,11 +31,13 @@ export async function GET() {
     const unique = new Map();
     for (const item of all) unique.set(`${item.id}-${item.chainId}`, item);
     const quests = [...unique.values()];
+    const active = new Map([...open, ...progress].map(item => [`${item.id}-${item.chainId}`, item]));
+    const ended = new Map(past.map(item => [`${item.id}-${item.chainId}`, item]));
     const totalUsd = quests.reduce((sum, item) => sum + Number(item.amountSort || 0), 0);
     return NextResponse.json({
       totalQuests: quests.length,
-      activeQuests: open.length + progress.length,
-      endedQuests: past.length,
+      activeQuests: active.size,
+      endedQuests: ended.size,
       totalUsd,
       currency: 'USD',
     });
