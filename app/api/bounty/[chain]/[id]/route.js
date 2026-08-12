@@ -2,6 +2,14 @@ import { NextResponse } from 'next/server';
 
 export const revalidate = 60;
 
+function normalizeImageUrl(value) {
+  if (!value || typeof value !== 'string') return null;
+  const url = value.trim();
+  if (url.startsWith('ipfs://')) return `https://ipfs.io/ipfs/${url.slice(7)}`;
+  if (url.startsWith('ipfs/')) return `https://ipfs.io/ipfs/${url.slice(5)}`;
+  return url;
+}
+
 export async function GET(request, { params }) {
   const { chain, id } = await params;
   if (!chain || !id) return NextResponse.json({ error: 'Missing bounty' }, { status: 400 });
@@ -17,7 +25,8 @@ export async function GET(request, { params }) {
     if (!response.ok) throw new Error(`POIDH returned ${response.status}`);
     const d = await response.json();
     const claims = Array.isArray(d.claims) ? d.claims : [];
-    const image = claims.find(c => c?.imageUrl)?.imageUrl || claims.find(c => c?.image)?.image || null;
+    const rawImage = claims.find(c => c?.imageUrl)?.imageUrl || claims.find(c => c?.image)?.image || null;
+    const image = normalizeImageUrl(rawImage);
     return NextResponse.json({
       priceUsd: d.priceUsd ?? null,
       submissions: claims.length,
