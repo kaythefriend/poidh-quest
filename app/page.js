@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useState } from 'react';
 
 const chainNames = { 1: 'mainnet', 42161: 'arbitrum', 8453: 'base', 666666666: 'degen' };
-const fallbackImage = (title, id) => `https://loremflickr.com/900/520/${encodeURIComponent((title || 'creative challenge').split(/\s+/).slice(0, 5).join(','))}?lock=${id}`;
+const chainLogos = {
+  mainnet: 'https://cdn.simpleicons.org/ethereum/627EEA',
+  arbitrum: 'https://cdn.simpleicons.org/arbitrum/28A0F0',
+  base: 'https://cdn.simpleicons.org/base/0052FF',
+  degen: 'https://cdn.simpleicons.org/degen/8A63D2',
+};
+const fallbackImage = (title, id, slug) => chainLogos[slug] || `https://loremflickr.com/900/520/${encodeURIComponent((title || 'creative challenge').split(/\s+/).slice(0, 5).join(','))}?lock=${id}`;
 const money = (value) => {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
   return `$${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value))}`;
@@ -84,7 +90,7 @@ export default function Home() {
       const key = b.id + '-' + b.chainId, d = details[key] || {}, slug = chainNames[b.chainId];
       const title = d.title || b.title || 'Untitled Quest';
       const description = d.description || b.description || 'Complete this POIDH quest and submit proof.';
-      const image = d.image || fallbackImage(title, b.id);
+      const image = d.image || fallbackImage(title, b.id, slug);
       return <article className="card" key={key}><div className="image" style={{ backgroundImage: `url(${image})` }} /><div className="body"><div className="topline"><span className="tag">QUEST</span><span className="chain">{slug}</span></div><h2>{title}</h2><p>{description}</p><div className="meta"><strong>{money(d.priceUsd ?? b.priceUsd)}</strong><span>{d.submissions === null || d.submissions === undefined ? 'Loading submissions…' : `${d.submissions} submission${d.submissions === 1 ? '' : 's'}`}</span></div><a href={`https://poidh.xyz/${slug}/bounty/${b.id}`} target="_blank" rel="noreferrer">View Quest →</a></div></article>;
     })}</section>
     {!loading && !error && !shown.length && <div className="status">No quests match your search.</div>}
