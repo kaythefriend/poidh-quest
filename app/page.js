@@ -2,58 +2,40 @@
 import { useEffect, useMemo, useState } from 'react';
 
 const chainNames = { 1: 'mainnet', 42161: 'arbitrum', 8453: 'base', 666666666: 'degen' };
-const chainLogos = {
-  mainnet: '/chain-logos/ethereum.svg',
-  base: '/chain-logos/base.svg',
-  arbitrum: '/chain-logos/arbitrum.svg',
-  degen: '/chain-logos/degen.svg'
-};
+const chainLogos = { mainnet: '/chain-logos/ethereum.svg', base: '/chain-logos/base.svg', arbitrum: '/chain-logos/arbitrum.svg', degen: '/chain-logos/degen.svg' };
 const money = (v) => v == null || Number.isNaN(Number(v)) ? '—' : `$${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(v))}`;
 
 export default function Home() {
-  const [q, setQ] = useState('');
-  const [chain, setChain] = useState('all');
-  const [sort, setSort] = useState('newest');
-  const [data, setData] = useState([]);
-  const [details, setDetails] = useState({});
-  const [stats, setStats] = useState(null);
-  const [visible, setVisible] = useState(60);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [q, setQ] = useState(''), [chain, setChain] = useState('all'), [sort, setSort] = useState('newest');
+  const [data, setData] = useState([]), [details, setDetails] = useState({}), [stats, setStats] = useState(null);
+  const [visible, setVisible] = useState(60), [loading, setLoading] = useState(true), [error, setError] = useState('');
 
   useEffect(() => {
-    fetch('/api/bounties')
-      .then(async (r) => { const j = await r.json(); if (!r.ok) throw Error(j.error || 'Unable to load quests'); return j; })
-      .then(setData).catch((e) => setError(e.message)).finally(() => setLoading(false));
-    fetch('/api/stats').then(r => r.json()).then(j => { if (!j.error) setStats(j); }).catch(() => {});
+    let alive = true;
+    fetch('/api/bounties', { cache: 'no-store' }).then(async r => { const j = await r.json(); if (!r.ok) throw Error(j.error || 'Unable to load quests'); return j; })
+      .then(j => alive && setData(j)).catch(e => alive && setError(e.message)).finally(() => alive && setLoading(false));
+    fetch('/api/stats', { cache: 'no-store' }).then(r => r.json()).then(j => alive && !j.error && setStats(j)).catch(() => {});
+    return () => { alive = false; };
   }, []);
 
   useEffect(() => {
     if (!data.length) return;
     let cancelled = false;
+    const load = async (b) => {
+      const slug = chainNames[b.chainId];
+      if (!slug) return [b.id + '-' + b.chainId, { unavailable: true }];
+      try {
+        const r = await fetch(`/api/bounty/${encodeURIComponent(slug)}/${encodeURIComponent(b.id)}`, { cache: 'force-cache' });
+        if (!r.ok) return [b.id + '-' + b.chainId, { unavailable: true }];
+        return [b.id + '-' + b.chainId, await r.json()];
+      } catch { return [b.id + '-' + b.chainId, { unavailable: true }]; }
+    };
     (async () => {
-      for (let i = 0; i < data.length; i += 8) {
-        const rs = await Promise.all(data.slice(i, i + 8).map(async (b) => {
-          try {
-            const slug = chainNames[b.chainId];
-            const r = await fetch(`https://poidh.xyz/${slug}/bounty/${b.id}/data`, { cache: 'no-store' });
-            if (!r.ok) return null;
-            const d = await r.json();
-            return [b.id + '-' + b.chainId, {
-              priceUsd: d.priceUsd,
-              submissions: Array.isArray(d.claims) ? d.claims.length : null,
-              image: d.claims?.find(c => c.imageUrl)?.imageUrl || null,
-              title: d.title,
-              description: d.description
-            }];
-          } catch { return null; }
-        }));
+      // Small concurrent batches prevent hundreds of simultaneous requests while keeping cards responsive.
+      for (let i = 0; i < data.length; i += 12) {
+        const rs = await Promise.all(data.slice(i, i + 12).map(load));
         if (cancelled) return;
-        setDetails(prev => {
-          const next = { ...prev };
-          rs.filter(Boolean).forEach(([k, v]) => { next[k] = v; });
-          return next;
-        });
+        setDetails(prev => ({ ...prev, ...Object.fromEntries(rs) }));
       }
     })();
     return () => { cancelled = true; };
@@ -62,61 +44,25 @@ export default function Home() {
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return data.filter(b => {
-      const slug = chainNames[b.chainId] || '';
-      const d = details[b.id + '-' + b.chainId] || {};
+      const slug = chainNames[b.chainId] || '', d = details[b.id + '-' + b.chainId] || {};
       return (chain === 'all' || slug === chain) && (!needle || `${d.title || b.title || ''} ${d.description || b.description || ''}`.toLowerCase().includes(needle));
     }).sort((a, b) => {
-      const da = details[a.id + '-' + a.chainId] || {};
-      const db = details[b.id + '-' + b.chainId] || {};
-      return sort === 'reward'
-        ? Number(db.priceUsd ?? b.priceUsd ?? 0) - Number(da.priceUsd ?? a.priceUsd ?? 0)
-        : Number(b.createdAt || 0) - Number(a.createdAt || 0);
+      const da = details[a.id + '-' + a.chainId] || {}, db = details[b.id + '-' + b.chainId] || {};
+      return sort === 'reward' ? Number(db.priceUsd ?? b.priceUsd ?? 0) - Number(da.priceUsd ?? a.priceUsd ?? 0) : Number(b.createdAt || 0) - Number(a.createdAt || 0);
     });
   }, [data, details, q, chain, sort]);
 
   const shown = rows.slice(0, visible);
-
   return <main>
-    <header className="hero">
-      <div className="brand"><span>POIDH</span> Quest</div>
-      <p>Real onchain bounties. Real quests. Go make it happen.</p>
-      <div className="stats">
-        <b>{stats ? stats.activeQuests.toLocaleString() : (data.length || '—')} <small>active quests</small></b>
-        <b>{stats ? stats.totalQuests.toLocaleString() : '—'} <small>total quests</small></b>
-        <b>{stats ? money(stats.totalUsd) : '—'} <small>total bounty value</small></b>
-        <b>4 <small>networks</small></b>
-      </div>
-      <div className="controls">
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search quests..." />
-        <select value={chain} onChange={e => { setChain(e.target.value); setVisible(60); }}>
-          <option value="all">All chains</option><option value="mainnet">Ethereum</option><option value="arbitrum">Arbitrum</option><option value="base">Base</option><option value="degen">Degen</option>
-        </select>
-        <select value={sort} onChange={e => setSort(e.target.value)}><option value="newest">Newest</option><option value="reward">Highest reward</option></select>
-      </div>
+    <header className="hero"><div className="brand"><span>POIDH</span> Quest</div><p>Real onchain bounties. Real quests. Go make it happen.</p>
+      <div className="stats"><b>{stats ? stats.activeQuests.toLocaleString() : (data.length || '—')} <small>active quests</small></b><b>{stats ? stats.totalQuests.toLocaleString() : '—'} <small>total quests</small></b><b>{stats ? money(stats.totalUsd) : '—'} <small>total bounty value</small></b><b>4 <small>networks</small></b></div>
+      <div className="controls"><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search quests..."/><select value={chain} onChange={e => { setChain(e.target.value); setVisible(60); }}><option value="all">All chains</option><option value="mainnet">Ethereum</option><option value="arbitrum">Arbitrum</option><option value="base">Base</option><option value="degen">Degen</option></select><select value={sort} onChange={e => setSort(e.target.value)}><option value="newest">Newest</option><option value="reward">Highest reward</option></select></div>
     </header>
-    {loading && <div className="status">Loading live POIDH quests…</div>}
-    {error && <div className="status error">{error}</div>}
-    <section className="grid">
-      {shown.map(b => {
-        const key = b.id + '-' + b.chainId;
-        const d = details[key] || {};
-        const slug = chainNames[b.chainId];
-        const title = d.title || b.title || 'Untitled Quest';
-        const description = d.description || b.description || 'Complete this POIDH quest and submit proof.';
-        // Chain logos are used ONLY when the Quest has zero submissions.
-        const image = d.submissions === 0 ? chainLogos[slug] : d.image || null;
-        return <article className="card" key={key}>
-          <div className="image" style={image ? { backgroundImage: `url(${image})` } : {}} />
-          <div className="body">
-            <div className="topline"><span className="tag">QUEST</span><span className="chain">{slug}</span></div>
-            <h2>{title}</h2><p>{description}</p>
-            <div className="meta"><strong>{money(d.priceUsd ?? b.priceUsd)}</strong><span>{d.submissions == null ? 'Loading submissions…' : `${d.submissions} submission${d.submissions === 1 ? '' : 's'}`}</span></div>
-            <a href={`https://poidh.xyz/${slug}/bounty/${b.id}`} target="_blank" rel="noreferrer">View Quest →</a>
-          </div>
-        </article>;
-      })}
-    </section>
-    {!loading && !error && !shown.length && <div className="status">No quests match your search.</div>}
-    {!loading && shown.length < rows.length && <button className="loadmore" onClick={() => setVisible(v => v + 60)}>Load more quests</button>}
+    {loading && <div className="status">Loading live POIDH quests…</div>}{error && <div className="status error">{error}</div>}
+    <section className="grid">{shown.map(b => { const key = b.id + '-' + b.chainId, d = details[key] || {}, slug = chainNames[b.chainId]; const title = d.title || b.title || 'Untitled Quest', description = d.description || b.description || 'Complete this POIDH quest and submit proof.'; const image = d.submissions === 0 ? chainLogos[slug] : d.image || null; return <article className="card" key={key}>
+      <div className="image">{image ? <img src={image} alt={d.submissions === 0 ? `${slug} chain` : 'Quest submission'} loading="lazy" onError={e => { e.currentTarget.style.display = 'none'; }} /> : <div className="image-placeholder" aria-hidden="true" />}</div>
+      <div className="body"><div className="topline"><span className="tag">QUEST</span><span className="chain">{slug}</span></div><h2>{title}</h2><p>{description}</p><div className="meta"><strong>{money(d.priceUsd ?? b.priceUsd)}</strong><span>{d.unavailable ? '—' : d.submissions == null ? 'Loading…' : `${d.submissions} submission${d.submissions === 1 ? '' : 's'}`}</span></div><a href={`https://poidh.xyz/${slug}/bounty/${b.id}`} target="_blank" rel="noreferrer">View Quest →</a></div>
+    </article>; })}</section>
+    {!loading && !error && !shown.length && <div className="status">No quests match your search.</div>}{!loading && shown.length < rows.length && <button className="loadmore" onClick={() => setVisible(v => v + 60)}>Load more quests</button>}
   </main>;
 }
