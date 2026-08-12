@@ -1,3 +1,35 @@
-import {NextResponse} from 'next/server';
-const map={ethereum:'ethereum',arbitrum:'arbitrum',base:'base',degen:'degen'};
-export async function GET(req){const chain=new URL(req.url).searchParams.get('chain');try{const r=await fetch(`https://poidh.xyz/${map[chain]}/bounty`,{cache:'no-store'});if(!r.ok)return NextResponse.json([]);const j=await r.json();const list=Array.isArray(j)?j:(j.bounties||j.data||[]);return NextResponse.json(list.map(x=>({id:x.id,title:x.title||x.name,description:x.description,amount:x.amount||x.reward||x.bounty,image:x.image||x.imageUrl,submissions:x.submissions??x.claims?.length??0,chain})));}catch{return NextResponse.json([])}}
+import { NextResponse } from 'next/server';
+
+export const revalidate = 30;
+
+export async function GET() {
+  const items = [];
+  let cursor = null;
+
+  try {
+    for (let page = 0; page < 20; page += 1) {
+      const url = new URL('https://poidh.xyz/bounties/data');
+      url.searchParams.set('limit', '100');
+      if (cursor) url.searchParams.set('cursor', String(cursor));
+
+      const response = await fetch(url, {
+        next: { revalidate: 30 },
+        headers: { Accept: 'application/json' },
+      });
+      if (!response.ok) throw new Error(`POIDH returned ${response.status}`);
+
+      const data = await response.json();
+      items.push(...(data.items || []));
+      if (!data.nextCursor || !data.items?.length) break;
+      cursor = data.nextCursor;
+    }
+
+    return NextResponse.json(items);
+  } catch (error) {
+    console.error('POIDH bounty index error:', error);
+    return NextResponse.json(
+      { error: 'Unable to load POIDH quests right now.' },
+      { status: 502 }
+    );
+  }
+}
