@@ -69,10 +69,10 @@ export default function Home() {
       <div className="controls"><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search quests..."/><select value={chain} onChange={e => { setChain(e.target.value); setVisible(60); }}><option value="all">All chains</option><option value="mainnet">Ethereum</option><option value="arbitrum">Arbitrum</option><option value="base">Base</option><option value="degen">Degen</option></select><select value={sort} onChange={e => setSort(e.target.value)}><option value="newest">Newest</option><option value="reward">Highest reward</option></select></div>
     </header>
     {loading && <div className="status">Loading live POIDH quests…</div>}{error && <div className="status error">{error}</div>}
-    <section className="grid">{shown.map(b => { const key = b.id + '-' + b.chainId, d = details[key] || {}, slug = chainNames[b.chainId]; const title = d.title || b.title || 'Untitled Quest', description = d.description || b.description || 'Complete this POIDH quest and submit proof.'; const submissionImage = imageUrl(d.image); const hasSubmissions = Number(d.submissions) > 0; const image = d.submissions === 0 ? chainLogos[slug] : submissionImage; return <article className="card" key={key}>
-      <div className="image">{image ? <img src={image} alt={d.submissions === 0 ? `${slug} chain` : 'Quest submission'} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={e => {
+    <section className="grid">{shown.map(b => { const key = b.id + '-' + b.chainId, d = details[key] || {}, slug = chainNames[b.chainId]; const title = d.title || b.title || 'Untitled Quest', description = d.description || b.description || 'Complete this POIDH quest and submit proof.'; const submissionImage = imageUrl(d.image); const logo = chainLogos[slug]; const image = submissionImage || logo; return <article className="card" key={key}>
+      <div className="image">{image ? <img src={image} alt={submissionImage ? 'Quest submission' : `${slug || 'chain'} logo`} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={e => {
         const el = e.currentTarget;
-        if (hasSubmissions && submissionImage && !el.dataset.retry) {
+        if (submissionImage && !el.dataset.retry) {
           el.dataset.retry = '1';
           const raw = d.image;
           if (typeof raw === 'string' && raw.includes('/ipfs/')) {
@@ -80,9 +80,10 @@ export default function Home() {
             if (match) { el.src = `https://ipfs.io${match[1]}`; return; }
           }
         }
-        if (d.submissions === 0 && chainLogos[slug]) {
-          el.src = chainLogos[slug];
-          el.alt = `${slug} chain`;
+        if (logo) {
+          el.src = logo;
+          el.alt = `${slug || 'chain'} logo`;
+          el.dataset.retry = 'fallback';
           return;
         }
         el.style.display = 'none';
