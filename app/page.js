@@ -3,17 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 
 const chainNames = { 1: 'mainnet', 42161: 'arbitrum', 8453: 'base', 666666666: 'degen' };
-const chainLogos = {
-  mainnet: 'https://cdn.jsdelivr.net/npm/simple-icons@16.21.0/icons/ethereum.svg',
-  arbitrum: 'https://cdn.jsdelivr.net/npm/simple-icons@16.21.0/icons/arbitrum.svg',
-  base: 'https://cdn.jsdelivr.net/npm/simple-icons@16.21.0/icons/base.svg',
-  degen: 'https://cdn.jsdelivr.net/npm/simple-icons@16.21.0/icons/degen.svg',
-};
+const chainLogos = { mainnet: '/chain-logos/ethereum.svg', arbitrum: '/chain-logos/arbitrum.svg', base: '/chain-logos/base.svg', degen: '/chain-logos/degen.svg' };
 const fallbackImage = (title, id, slug) => chainLogos[slug] || `https://loremflickr.com/900/520/${encodeURIComponent((title || 'creative challenge').split(/\s+/).slice(0, 5).join(','))}?lock=${id}`;
-const money = (value) => {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
-  return `$${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value))}`;
-};
+const money = (value) => { if (value === null || value === undefined || Number.isNaN(Number(value))) return '—'; return `$${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value))}`; };
 
 export default function Home() {
   const [q, setQ] = useState(''); const [chain, setChain] = useState('all'); const [sort, setSort] = useState('newest');
