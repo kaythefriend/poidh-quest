@@ -69,9 +69,26 @@ export default function Home() {
       <div className="controls"><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search quests..."/><select value={chain} onChange={e => { setChain(e.target.value); setVisible(60); }}><option value="all">All chains</option><option value="mainnet">Ethereum</option><option value="arbitrum">Arbitrum</option><option value="base">Base</option><option value="degen">Degen</option></select><select value={sort} onChange={e => setSort(e.target.value)}><option value="newest">Newest</option><option value="reward">Highest reward</option></select></div>
     </header>
     {loading && <div className="status">Loading live POIDH quests…</div>}{error && <div className="status error">{error}</div>}
-    <section className="grid">{shown.map(b => { const key = b.id + '-' + b.chainId, d = details[key] || {}, slug = chainNames[b.chainId], title = d.title || b.title || 'Untitled Quest', description = d.description || b.description || 'Complete this POIDH quest and submit proof.', submissionImage = imageUrl(d.image), logo = chainLogos[slug], hasSubmissions = Number(d.submissions) > 0, submissionsKnown = Number.isFinite(Number(d.submissions)), image = submissionImage || logo; const submissionLabel = !submissionsKnown ? (d.unavailable ? 'Submissions unavailable' : 'Loading submissions…') : hasSubmissions ? `${d.submissions} submission${d.submissions === 1 ? '' : 's'}${!submissionImage ? ' • image unavailable' : ''}` : '0 submissions'; return <article className="card" key={key}>
-      <div className="image">{image ? <img src={image} alt={submissionImage ? 'Quest submission' : `${slug || 'chain'} logo`} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={e => { const el = e.currentTarget; if (submissionImage && !el.dataset.retry) { el.dataset.retry = '1'; const raw = d.image; if (typeof raw === 'string' && raw.includes('/ipfs/')) { const match = raw.match(/(?:https?:\/\/[^/]+)?(\/ipfs\/[^?#]+)/i); if (match) { el.src = `https://ipfs.io${match[1]}`; return; } } } if (logo) { el.src = logo; el.alt = `${slug || 'chain'} logo`; el.dataset.retry = 'fallback'; return; } el.style.display = 'none'; }} /> : <div className="image-placeholder" aria-hidden="true" />}</div>
-      <div className="body"><div className="topline"><span className="tag">QUEST</span><span className="chain">{slug}</span></div><h2>{title}</h2><p>{description}</p><div className="meta"><strong>{money(d.priceUsd ?? b.priceUsd)}</strong><span>{submissionLabel}</span></div><a href={`https://poidh.xyz/${slug}/bounty/${b.id}`} target="_blank" rel="noreferrer">View Quest →</a></div>
+    <section className="grid">{shown.map(b => { const key = b.id + '-' + b.chainId, d = details[key] || {}, slug = chainNames[b.chainId]; const title = d.title || b.title || 'Untitled Quest', description = d.description || b.description || 'Complete this POIDH quest and submit proof.'; const submissionImage = imageUrl(d.image); const logo = chainLogos[slug]; const image = submissionImage || logo; return <article className="card" key={key}>
+      <div className="image">{image ? <img src={image} alt={submissionImage ? 'Quest submission' : `${slug || 'chain'} logo`} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={e => {
+        const el = e.currentTarget;
+        if (submissionImage && !el.dataset.retry) {
+          el.dataset.retry = '1';
+          const raw = d.image;
+          if (typeof raw === 'string' && raw.includes('/ipfs/')) {
+            const match = raw.match(/(?:https?:\/\/[^/]+)?(\/ipfs\/[^?#]+)/i);
+            if (match) { el.src = `https://ipfs.io${match[1]}`; return; }
+          }
+        }
+        if (logo) {
+          el.src = logo;
+          el.alt = `${slug || 'chain'} logo`;
+          el.dataset.retry = 'fallback';
+          return;
+        }
+        el.style.display = 'none';
+      }} /> : <div className="image-placeholder" aria-hidden="true" />}</div>
+      <div className="body"><div className="topline"><span className="tag">QUEST</span><span className="chain">{slug}</span></div><h2>{title}</h2><p>{description}</p><div className="meta"><strong>{money(d.priceUsd ?? b.priceUsd)}</strong><span>{d.unavailable ? '—' : d.submissions == null ? 'Loading…' : `${d.submissions} submission${d.submissions === 1 ? '' : 's'}`}</span></div><a href={`https://poidh.xyz/${slug}/bounty/${b.id}`} target="_blank" rel="noreferrer">View Quest →</a></div>
     </article>; })}</section>
     {!loading && !error && !shown.length && <div className="status">No quests match your search.</div>}{!loading && shown.length < rows.length && <button className="loadmore" onClick={() => setVisible(v => v + 60)}>Load more quests</button>}
   </main>;
